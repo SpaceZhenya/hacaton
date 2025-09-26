@@ -3,59 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SenseAble Enhanced Prototype</title>
+<title>SenseAble+ Hackathon Demo</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
-    color: #222;
-    padding: 20px;
-    transition: all 0.3s ease;
-  }
-  body.high-contrast {
-    background-color: #000;
-    color: #fff;
-  }
-  body.dyslexia-font {
-    font-family: 'OpenDyslexic', Arial, sans-serif;
-  }
-  .container {
-    max-width: 600px;
-    margin: auto;
-  }
-  button {
-    padding: 10px 20px;
-    margin: 5px;
-    font-size: 1rem;
-  }
-  #taskStep {
-    margin-top: 20px;
-    font-weight: bold;
-  }
+  body { font-family: Arial, sans-serif; background: #f0f0f0; color: #222; padding: 20px; }
+  body.high-contrast { background: #000; color: #fff; }
+  body.dyslexia-font { font-family: 'OpenDyslexic', Arial, sans-serif; }
+  .container { max-width: 700px; margin: auto; text-align: center; }
+  button { padding: 10px 20px; margin: 5px; font-size: 1rem; }
+  #taskStep { margin-top: 20px; font-weight: bold; }
+  video { border: 2px solid #222; max-width: 100%; margin-top: 10px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 </head>
 <body>
 <div class="container">
-  <h1>Welcome to SenseAble!</h1>
-  <p>Use voice commands like: "toggle color mode", "toggle dyslexia font", "say hello", "read message", "start task".</p>
-  
+  <h1>SenseAble+ Hackathon Demo</h1>
+  <p>Voice commands: "toggle color mode", "toggle dyslexia font", "say hello", "read message", "start task".</p>
   <button id="toggleMode">Toggle Color Mode</button>
   <button id="toggleFont">Toggle Dyslexia Font</button>
   <button id="speakHello">Say Hello</button>
   <button id="readMessage">Read Message</button>
   <button id="startTask">Start Task</button>
-  
-  <p id="message">This is a sample message for SenseAble users.</p>
+  <p id="message">This is a sample message for SenseAble+ users.</p>
   <p id="taskStep"></p>
+  <video id="webcam" autoplay muted width="640" height="480"></video>
 </div>
 
 <script>
-  // Voice recognition
+  // --- Voice Recognition ---
   const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
   recognition.continuous = true;
   recognition.lang = 'en-US';
   recognition.interimResults = false;
-
   recognition.onresult = (event) => {
     const last = event.results.length - 1;
     const command = event.results[last][0].transcript.trim().toLowerCase();
@@ -63,36 +43,23 @@
   };
   recognition.start();
 
-  // Text-to-speech
+  // --- Text-to-Speech ---
   function speak(text) {
     const utterance = new SpeechSynthesisUtterance(text);
     speechSynthesis.speak(utterance);
   }
 
-  // Adaptive features
+  // --- Adaptive Features ---
   const body = document.body;
   const messageEl = document.getElementById('message');
   const taskStepEl = document.getElementById('taskStep');
 
-  function toggleColorMode() {
-    body.classList.toggle('high-contrast');
-    speak('Color mode toggled');
-  }
+  function toggleColorMode() { body.classList.toggle('high-contrast'); speak('Color mode toggled'); }
+  function toggleDyslexiaFont() { body.classList.toggle('dyslexia-font'); speak('Dyslexia-friendly font toggled'); }
+  function sayHello() { speak('Hello! Welcome to SenseAble+.'); }
+  function readMessage() { speak(messageEl.textContent); }
 
-  function toggleDyslexiaFont() {
-    body.classList.toggle('dyslexia-font');
-    speak('Dyslexia-friendly font toggled');
-  }
-
-  function sayHello() {
-    speak('Hello! Welcome to SenseAble.');
-  }
-
-  function readMessage() {
-    speak(messageEl.textContent);
-  }
-
-  // Step-by-step task guidance
+  // --- Step-by-step task guidance ---
   const taskSteps = [
     "Step 1: Open your email.",
     "Step 2: Check your inbox for new messages.",
@@ -101,42 +68,23 @@
     "Task finished!"
   ];
   let currentStep = 0;
-
-  function startTask() {
-    currentStep = 0;
-    nextTaskStep();
-  }
-
+  function startTask() { currentStep = 0; nextTaskStep(); }
   function nextTaskStep() {
     if (currentStep < taskSteps.length) {
       taskStepEl.textContent = taskSteps[currentStep];
       speak(taskSteps[currentStep]);
       currentStep++;
-    } else {
-      taskStepEl.textContent = "";
-    }
+    } else { taskStepEl.textContent = ""; }
   }
 
-  // Gesture simulation
-  let touchStartX = 0;
-  let touchEndX = 0;
-
+  // --- Gesture Simulation ---
+  let touchStartX = 0, touchEndX = 0;
   document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; });
-  document.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].screenX;
-    handleGesture();
-  });
-
+  document.addEventListener('touchend', (e) => { touchEndX = e.changedTouches[0].screenX; handleGesture(); });
   function handleGesture() {
     const deltaX = touchEndX - touchStartX;
-    if (deltaX > 50) { // swipe right
-      speak('Next task step');
-      nextTaskStep();
-    } else if (deltaX < -50) { // swipe left
-      speak('Previous task step');
-      if (currentStep > 1) currentStep -= 2;
-      nextTaskStep();
-    }
+    if (deltaX > 50) { speak('Next task step'); nextTaskStep(); }
+    else if (deltaX < -50) { speak('Previous task step'); if (currentStep > 1) currentStep -= 2; nextTaskStep(); }
   }
 
   function handleCommand(command) {
@@ -147,12 +95,26 @@
     else if (command.includes('start task')) startTask();
   }
 
-  // Button actions
-  document.getElementById('toggleMode').onclick = toggleColorMode;
-  document.getElementById('toggleFont').onclick = toggleDyslexiaFont;
-  document.getElementById('speakHello').onclick = sayHello;
-  document.getElementById('readMessage').onclick = readMessage;
-  document.getElementById('startTask').onclick = startTask;
+  // --- Webcam & Object Detection ---
+  const video = document.getElementById('webcam');
+  async function setupWebcam() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    return new Promise(resolve => { video.onloadedmetadata = () => resolve(video); });
+  }
+
+  async function detectObjects() {
+    const model = await cocoSsd.load();
+    speak('Object detection ready.');
+    setInterval(async () => {
+      const predictions = await model.detect(video);
+      predictions.forEach(pred => {
+        if (pred.score > 0.6) speak(`Detected ${pred.class} ahead`);
+      });
+    }, 5000); // alert every 5 seconds for demo
+  }
+
+  setupWebcam().then(detectObjects);
 </script>
 </body>
 </html>
