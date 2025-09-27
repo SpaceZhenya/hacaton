@@ -2,27 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>FPS Шутер</title>
+<title>FPS Шутер без Старт</title>
 <style>
   body { margin:0; overflow:hidden; background:#000; }
-  canvas { display:block; z-index:0; }
-  #menu {
-    position:absolute;
-    top:50%; left:50%;
-    transform:translate(-50%, -50%);
-    background:rgba(0,0,0,0.7);
-    padding:20px;
-    border-radius:10px;
-    color:white;
-    font-family:sans-serif;
-    text-align:center;
-    z-index:10;
-  }
-  button {
-    font-size:18px;
-    padding:10px 20px;
-    cursor:pointer;
-  }
+  canvas { display:block; }
   #score {
     position:absolute; top:10px; left:10px;
     font-family:sans-serif; font-size:18px; color:white;
@@ -32,10 +15,6 @@
 </head>
 <body>
 <div id="score">Счёт: 0</div>
-<div id="menu">
-  <p>Нажми "Старт", чтобы играть</p>
-  <button id="startButton">Старт</button>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/controls/PointerLockControls.js"></script>
@@ -86,19 +65,12 @@ for(let z=0; z<map.length; z++){
 
 // Игрок
 const controls = new THREE.PointerLockControls(camera, document.body);
-const menu = document.getElementById("menu");
-const startButton = document.getElementById("startButton");
 
-// 🔑 Важное исправление
-startButton.addEventListener("click", function(e){
-  e.preventDefault(); // обязательно
+// 🔹 Клик по экрану активирует PointerLock
+document.body.addEventListener("click", () => {
   controls.lock();
 });
 
-controls.addEventListener("lock",()=>{menu.style.display="none";});
-controls.addEventListener("unlock",()=>{menu.style.display="block";});
-
-// Управление
 const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 const keys = {};
