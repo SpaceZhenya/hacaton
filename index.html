@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
-  <title>3D Shooter — База с охраной</title>
+  <title>3D Shooter — Охрана патрулирует базу</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #crosshair {
@@ -28,7 +28,7 @@
 
   <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
   <script>
-    // Сцена, камера, рендер
+    // Базовые переменные
     let scene, camera, renderer;
     const player = new THREE.Group();
     const bullets = [];
@@ -39,7 +39,7 @@
     const move = { forward: 0, turn: 0 };
     const speed = 8, turnSpeed = 2.5;
 
-    // Raycaster и мышь для стрельбы
+    // Для стрельбы по клику
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
@@ -48,13 +48,14 @@
     animate();
 
     function init() {
+      // Сцена и рендер
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x20232a);
-
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
+      // Камера
       camera = new THREE.PerspectiveCamera(
         75, window.innerWidth/window.innerHeight, 0.1, 1000
       );
@@ -71,7 +72,7 @@
       scene.add(floor);
 
       // Игрок
-      createLowPolyPlayer();
+      createLowPolyHuman(player, 0x00aa00);
       scene.add(player);
       player.position.set(0,0,0);
 
@@ -80,140 +81,86 @@
       createTargets();
       createGuards();
 
+      // Управление
       setupControls();
       window.addEventListener('resize', onResize);
     }
 
-    // Низкополигональный человек
-    function createLowPolyPlayer() {
-      const mat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
-      const torso = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5,1,0.3), mat
-      );
-      torso.position.y = 1;
-      player.add(torso);
-      const head = new THREE.Mesh(
-        new THREE.BoxGeometry(0.3,0.3,0.3), mat.clone()
-      );
-      head.position.y = 1.6;
-      player.add(head);
+    // Рисуем low-poly человечка в заданную группу
+    function createLowPolyHuman(group, color) {
+      const mat = new THREE.MeshStandardMaterial({ color });
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.3), mat);
+      torso.position.y = 1; group.add(torso);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.3), mat.clone());
+      head.position.y = 1.6; group.add(head);
       const armGeo = new THREE.BoxGeometry(0.15,0.7,0.15);
       const leftArm = new THREE.Mesh(armGeo, mat);
       const rightArm = leftArm.clone();
-      leftArm.position.set(-0.35,1.15,0);
-      rightArm.position.set(0.35,1.15,0);
-      player.add(leftArm, rightArm);
+      leftArm.position.set(-0.35,1.15,0); rightArm.position.set(0.35,1.15,0);
+      group.add(leftArm, rightArm);
       const legGeo = new THREE.BoxGeometry(0.2,0.8,0.2);
       const leftLeg = new THREE.Mesh(legGeo, mat);
       const rightLeg = leftLeg.clone();
-      leftLeg.position.set(-0.15,0.4,0);
-      rightLeg.position.set(0.15,0.4,0);
-      player.add(leftLeg, rightLeg);
+      leftLeg.position.set(-0.15,0.4,0); rightLeg.position.set(0.15,0.4,0);
+      group.add(leftLeg, rightLeg);
     }
 
-    // Создаём охранников с патрулем
-    function createGuards() {
-      const guardMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
-      const geo = new THREE.BoxGeometry(0.4,1,0.4);
-      const patrolPoints = [
-        new THREE.Vector3(15,0,15),
-        new THREE.Vector3(15,0,-15),
-        new THREE.Vector3(-15,0,-15),
-        new THREE.Vector3(-15,0,15)
-      ];
-      for (let i = 0; i < 4; i++) {
-        const mesh = new THREE.Mesh(geo, guardMat);
-        mesh.position.copy(patrolPoints[i]);
-        mesh.position.y = 0.5;
-        scene.add(mesh);
-        guards.push({
-          mesh,
-          waypoints: patrolPoints,
-          index: i,
-          state: 'patrol',
-          speed: 4,
-          detection: 10
-        });
-      }
-    }
-
-    // База и её детали
+    // База
     function createBase() {
       const wallMat   = new THREE.MeshStandardMaterial({ color: 0x444444 });
       const buildMat  = new THREE.MeshStandardMaterial({ color: 0x666666 });
       const detailMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
-      // Периметр
+
+      // Стены
       const wallV = new THREE.BoxGeometry(1,4,60);
       const wallH = new THREE.BoxGeometry(60,4,1);
       [[-30,0],[30,0]].forEach(([x,z])=>{
         const w = new THREE.Mesh(wallV, wallMat);
-        w.position.set(x,2,z);
-        scene.add(w);
+        w.position.set(x,2,z); scene.add(w);
       });
       [[0,-30],[0,30]].forEach(([x,z])=>{
         const w = new THREE.Mesh(wallH, wallMat);
-        w.position.set(x,2,z);
-        scene.add(w);
+        w.position.set(x,2,z); scene.add(w);
       });
+
       // Вышки
       const towerGeo = new THREE.CylinderGeometry(1.5,1.5,12,8);
       for (let dx of [-28,28]) for (let dz of [-28,28]) {
         const tower = new THREE.Mesh(towerGeo, buildMat);
-        tower.position.set(dx,6,dz);
-        scene.add(tower);
+        tower.position.set(dx,6,dz); scene.add(tower);
         const top = new THREE.Mesh(
           new THREE.CylinderGeometry(2,2,0.5,12), detailMat
         );
-        top.position.set(dx,12.25,dz);
-        scene.add(top);
-        const beacon = new THREE.PointLight(0xffcc66,1,20);
-        beacon.position.set(dx,13,dz);
-        scene.add(beacon);
+        top.position.set(dx,12.25,dz); scene.add(top);
       }
-      // Здания и коридор
-      const barracks = new THREE.Mesh(
-        new THREE.BoxGeometry(16,4,6), buildMat
-      );
-      barracks.position.set(-8,2,-10);
-      scene.add(barracks);
-      const cmd = new THREE.Mesh(
-        new THREE.BoxGeometry(6,4,16), buildMat
-      );
-      cmd.position.set(10,2,8);
-      scene.add(cmd);
-      const corridor = new THREE.Mesh(
-        new THREE.BoxGeometry(4,3,10), wallMat
-      );
-      corridor.position.set(1,1.5,-2);
-      scene.add(corridor);
-      // Фонари вдоль стены
-      for (let i = -20; i <= 20; i += 10) {
-        const pole = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.1,0.1,4,6), detailMat
-        );
-        pole.position.set(i,2.5,29);
-        scene.add(pole);
-        const spot = new THREE.SpotLight(0xffffff,0.8,50,Math.PI/6,0.5);
-        spot.position.set(i,4,28);
-        spot.target.position.set(i,0,25);
-        scene.add(spot,spot.target);
-      }
-      // Helipad
-      const helipad = new THREE.Mesh(
+
+      // Корпуса и коридор
+      const b1 = new THREE.Mesh(new THREE.BoxGeometry(16,4,6), buildMat);
+      b1.position.set(-8,2,-10); scene.add(b1);
+      const b2 = new THREE.Mesh(new THREE.BoxGeometry(6,4,16), buildMat);
+      b2.position.set(10,2,8); scene.add(b2);
+      const cor = new THREE.Mesh(new THREE.BoxGeometry(4,3,10), wallMat);
+      cor.position.set(1,1.5,-2); scene.add(cor);
+
+      // Ворота
+      const gateMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+      const g1 = new THREE.Mesh(new THREE.BoxGeometry(6,3,0.5), gateMat);
+      const g2 = g1.clone();
+      g1.position.set(-3,1.5,30); g2.position.set(3,1.5,30);
+      scene.add(g1, g2);
+
+      // Хелипад
+      const pad = new THREE.Mesh(
         new THREE.CircleGeometry(5,32),
         new THREE.MeshStandardMaterial({ color: 0x333333 })
       );
-      helipad.rotation.x = -Math.PI/2;
-      helipad.position.set(0,0.01,15);
-      scene.add(helipad);
+      pad.rotation.x = -Math.PI/2; pad.position.set(0,0.01,15);
+      scene.add(pad);
+
       // Ящики и бочки
-      for (let i = 0; i < 15; i++){
-        const box = new THREE.Mesh(
-          new THREE.BoxGeometry(1,1,1), detailMat
-        );
-        box.position.set(
-          (Math.random()-0.5)*40, 0.5, (Math.random()-0.5)*40
-        );
+      for (let i=0; i<15; i++){
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), detailMat);
+        box.position.set((Math.random()-0.5)*40,0.5,(Math.random()-0.5)*40);
         scene.add(box);
         if (i % 5 === 0) {
           const barrel = new THREE.Mesh(
@@ -221,87 +168,94 @@
             new THREE.MeshStandardMaterial({ color: 0x222222 })
           );
           barrel.position.set(
-            (Math.random()-0.5)*40, 0.6, (Math.random()-0.5)*40
+            (Math.random()-0.5)*40,0.6,(Math.random()-0.5)*40
           );
           scene.add(barrel);
         }
       }
     }
 
-    // Красные цели
+    // Цели
     function createTargets() {
       const geo = new THREE.BoxGeometry(1,1,1);
       const mat = new THREE.MeshStandardMaterial({ color: 0xff3333 });
-      for (let i = 0; i < 20; i++) {
+      for (let i=0; i<20; i++){
         const t = new THREE.Mesh(geo, mat);
-        t.position.set(
-          (Math.random()-0.5)*50,
-          0.5,
-          -Math.random()*50
-        );
-        scene.add(t);
-        targets.push(t);
+        t.position.set((Math.random()-0.5)*50,0.5,-Math.random()*50);
+        scene.add(t); targets.push(t);
       }
     }
 
-    // Управление и стрельба
+    // Охранники-патрули
+    function createGuards() {
+      const patrolPoints = [
+        [ -20, 0, 20 ],
+        [  20, 0, 20 ],
+        [  20, 0,-20 ],
+        [ -20, 0,-20 ]
+      ];
+      const guardSpeed = 2.5;
+
+      for (let i=0; i<4; i++){
+        const gGroup = new THREE.Group();
+        createLowPolyHuman(gGroup, 0xffaa00);
+        const wp = patrolPoints.map(p=>new THREE.Vector3(...p));
+        gGroup.position.copy(wp[i]);
+        scene.add(gGroup);
+        guards.push({
+          mesh: gGroup,
+          waypoints: wp,
+          idx: i,
+          speed: guardSpeed
+        });
+      }
+    }
+
+    // Контролы и стрельба
     function setupControls() {
-      document.addEventListener('keydown', e => {
-        if (e.code==='ArrowUp')   move.forward =  1;
-        if (e.code==='ArrowDown') move.forward = -1;
-        if (e.code==='ArrowLeft') move.turn    =  1;
-        if (e.code==='ArrowRight')move.turn    = -1;
+      document.addEventListener('keydown', e=>{
+        if(e.code==='ArrowUp')    move.forward =  1;
+        if(e.code==='ArrowDown')  move.forward = -1;
+        if(e.code==='ArrowLeft')  move.turn    =  1;
+        if(e.code==='ArrowRight') move.turn    = -1;
       });
-      document.addEventListener('keyup', e => {
-        if (e.code==='ArrowUp'||e.code==='ArrowDown')   move.forward=0;
-        if (e.code==='ArrowLeft'||e.code==='ArrowRight')move.turn   =0;
+      document.addEventListener('keyup', e=>{
+        if(e.code==='ArrowUp'||e.code==='ArrowDown')   move.forward=0;
+        if(e.code==='ArrowLeft'||e.code==='ArrowRight')move.turn   =0;
       });
       document.addEventListener('mousedown', shoot);
     }
 
     function shoot(event) {
-      mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-      mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+      mouse.x = (event.clientX/window.innerWidth)*2 - 1;
+      mouse.y = -(event.clientY/window.innerHeight)*2 + 1;
       raycaster.setFromCamera(mouse, camera);
       const point = new THREE.Vector3();
       raycaster.ray.intersectPlane(groundPlane, point);
-      const geo = new THREE.SphereGeometry(0.1,8,8);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-      const b = new THREE.Mesh(geo, mat);
+
+      const b = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1,8,8),
+        new THREE.MeshBasicMaterial({ color:0xffff00 })
+      );
       b.position.copy(player.position).add(new THREE.Vector3(0,1,0));
       const dir = point.clone().sub(b.position).normalize();
       b.userData.velocity = dir.multiplyScalar(50);
-      scene.add(b);
-      bullets.push(b);
+      scene.add(b); bullets.push(b);
     }
 
-    // AI охранников
+    // Обновляем патруль охранников
     function updateGuards(dt) {
-      guards.forEach(g => {
-        const { mesh, waypoints, detection } = g;
-        const toPlayer = player.position.clone().sub(mesh.position);
-        const distToPlayer = toPlayer.length();
-
-        if (distToPlayer < detection) {
-          // Состояние "alert": бежим к игроку
-          g.state = 'alert';
-        }
-        if (g.state === 'alert') {
-          // Движемся прямо к игроку
-          const dir = toPlayer.normalize();
-          mesh.position.addScaledVector(dir, g.speed * dt);
-          mesh.lookAt(player.position);
+      guards.forEach(g=>{
+        const pt = g.waypoints[g.idx];
+        const dir = pt.clone().sub(g.mesh.position);
+        const dist = dir.length();
+        if(dist < 0.2) {
+          g.idx = (g.idx + 1) % g.waypoints.length;
         } else {
-          // Патрулируем по точкам
-          const target = waypoints[g.index];
-          const toTarget = target.clone().sub(mesh.position);
-          if (toTarget.length() < 0.2) {
-            g.index = (g.index + 1) % waypoints.length;
-          } else {
-            const dir = toTarget.normalize();
-            mesh.position.addScaledVector(dir, g.speed * dt);
-            mesh.lookAt(target);
-          }
+          dir.normalize();
+          g.mesh.position.addScaledVector(dir, g.speed * dt);
+          // Поворачиваем охранника к следующей точке
+          g.mesh.lookAt(pt.clone().setY(g.mesh.position.y));
         }
       });
     }
@@ -314,33 +268,27 @@
       // Движение игрока
       player.rotation.y += move.turn * turnSpeed * dt;
       const yaw = player.rotation.y;
-      const forwardVec = new THREE.Vector3(
-        Math.sin(yaw), 0, Math.cos(yaw)
-      );
-      player.position.addScaledVector(forwardVec, move.forward * speed * dt);
+      const fv = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+      player.position.addScaledVector(fv, move.forward * speed * dt);
 
-      // Камера
+      // Камера за спиной
       const offset = new THREE.Vector3(0,2,5)
         .applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
       camera.position.copy(player.position).add(offset);
       camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1,0)));
 
-      // Пули
+      // Пули и попадания
       for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.position.addScaledVector(b.userData.velocity, dt);
         if (b.position.length() > 200) {
-          scene.remove(b);
-          bullets.splice(i,1);
-          continue;
+          scene.remove(b); bullets.splice(i,1); continue;
         }
         for (let j = targets.length - 1; j >= 0; j--) {
           const t = targets[j];
           if (b.position.distanceTo(t.position) < 0.6) {
-            scene.remove(t);
-            targets.splice(j,1);
-            kills++;
-            document.getElementById('kills').textContent = 'Убито: ' + kills;
+            scene.remove(t); targets.splice(j,1);
+            kills++; document.getElementById('kills').textContent = 'Убито: '+kills;
           }
         }
       }
