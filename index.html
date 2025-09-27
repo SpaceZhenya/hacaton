@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
-  <title>3D Shooter — Low-Poly Человек</title>
+  <title>3D Shooter — прицел по клику</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #crosshair {
@@ -35,6 +35,11 @@
     const move = { forward: 0, turn: 0 };
     const speed = 8, turnSpeed = 2.5;
 
+    // Raycaster для кликов
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
     init();
     animate();
 
@@ -43,7 +48,7 @@
       scene.background = new THREE.Color(0x20232a);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(innerWidth, innerHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
       camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
@@ -59,10 +64,10 @@
       floor.rotation.x = -Math.PI/2;
       scene.add(floor);
 
-      // Добавляем нашу низкополигональную модель человека
+      // low-poly человек
       createLowPolyPlayer();
       scene.add(player);
-      player.position.set(0, 0, 0);
+      player.position.set(0,0,0);
 
       createBase();
       createTargets();
@@ -70,74 +75,60 @@
       window.addEventListener('resize', onResize);
     }
 
-    // Строим low-poly человека из примитивов
     function createLowPolyPlayer() {
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
-      // Тело
-      const torso = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 1, 0.3),
-        bodyMat
-      );
+      const mat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.3), mat);
       torso.position.y = 1;
       player.add(torso);
 
-      // Голова
-      const head = new THREE.Mesh(
-        new THREE.BoxGeometry(0.3, 0.3, 0.3),
-        bodyMat.clone()
-      );
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.3), mat.clone());
       head.position.y = 1.6;
       player.add(head);
 
-      // Руки
-      const armGeo = new THREE.BoxGeometry(0.15, 0.7, 0.15);
-      const leftArm = new THREE.Mesh(armGeo, bodyMat);
+      const armGeo = new THREE.BoxGeometry(0.15,0.7,0.15);
+      const leftArm = new THREE.Mesh(armGeo, mat);
       const rightArm = leftArm.clone();
-      leftArm.position.set(-0.35, 1.15, 0);
-      rightArm.position.set( 0.35, 1.15, 0);
+      leftArm.position.set(-0.35,1.15,0);
+      rightArm.position.set( 0.35,1.15,0);
       player.add(leftArm, rightArm);
 
-      // Ноги
-      const legGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
-      const leftLeg = new THREE.Mesh(legGeo, bodyMat);
+      const legGeo = new THREE.BoxGeometry(0.2,0.8,0.2);
+      const leftLeg = new THREE.Mesh(legGeo, mat);
       const rightLeg = leftLeg.clone();
-      leftLeg.position.set(-0.15, 0.4, 0);
-      rightLeg.position.set( 0.15, 0.4, 0);
+      leftLeg.position.set(-0.15,0.4,0);
+      rightLeg.position.set( 0.15,0.4,0);
       player.add(leftLeg, rightLeg);
     }
 
     function createBase() {
       const wallMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
-      const buildingMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
+      const buildMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
 
-      // Периметр
-      const wallV = new THREE.BoxGeometry(1, 3, 50);
-      const wallH = new THREE.BoxGeometry(50, 3, 1);
-      [[-25,0,'v'],[25,0,'v']].forEach(([x,z])=>{
+      const wallV = new THREE.BoxGeometry(1,3,50);
+      const wallH = new THREE.BoxGeometry(50,3,1);
+      [[-25,0],[25,0]].forEach(([x,z])=>{
         const w = new THREE.Mesh(wallV, wallMat);
         w.position.set(x,1.5,z);
         scene.add(w);
       });
-      [[0,-25,'h'],[0,25,'h']].forEach(([x,z])=>{
+      [[0,-25],[0,25]].forEach(([x,z])=>{
         const w = new THREE.Mesh(wallH, wallMat);
         w.position.set(x,1.5,z);
         scene.add(w);
       });
 
-      // Здания
-      const barracks = new THREE.Mesh(new THREE.BoxGeometry(10,3,6), buildingMat);
+      const barracks = new THREE.Mesh(new THREE.BoxGeometry(10,3,6), buildMat);
       barracks.position.set(-10,1.5,-10);
       scene.add(barracks);
 
-      const cmd = new THREE.Mesh(new THREE.BoxGeometry(6,4,6), buildingMat);
+      const cmd = new THREE.Mesh(new THREE.BoxGeometry(6,4,6), buildMat);
       cmd.position.set(10,2,-10);
       scene.add(cmd);
 
-      const hangar = new THREE.Mesh(new THREE.BoxGeometry(14,5,10), buildingMat);
+      const hangar = new THREE.Mesh(new THREE.BoxGeometry(14,5,10), buildMat);
       hangar.position.set(0,2.5,10);
       scene.add(hangar);
 
-      // Ящики
       for (let i=0; i<10; i++){
         const box = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), wallMat);
         box.position.set((Math.random()-0.5)*20,0.5,(Math.random()-0.5)*20);
@@ -170,14 +161,26 @@
       document.addEventListener('mousedown', shoot);
     }
 
-    function shoot() {
+    function shoot(event) {
+      // Нормализуем координаты клика
+      mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+      mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      // Найдём точку на плоскости земли
+      const point = new THREE.Vector3();
+      raycaster.ray.intersectPlane(groundPlane, point);
+
+      // Создаём пулю
       const geo = new THREE.SphereGeometry(0.1,8,8);
       const mat = new THREE.MeshBasicMaterial({ color:0xffff00 });
       const b = new THREE.Mesh(geo, mat);
       b.position.copy(player.position).add(new THREE.Vector3(0,1,0));
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
+
+      // Направление от пули к точке клика
+      const dir = point.clone().sub(b.position).normalize();
       b.userData.velocity = dir.multiplyScalar(50);
+
       scene.add(b);
       bullets.push(b);
     }
@@ -186,11 +189,11 @@
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
-      // Поворот и движение персонажа
+      // Поворот и движение игрока
       player.rotation.y += move.turn * turnSpeed * dt;
       const yaw = player.rotation.y;
-      const forwardVec = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
-      player.position.addScaledVector(forwardVec, move.forward * speed * dt);
+      const fv = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+      player.position.addScaledVector(fv, move.forward * speed * dt);
 
       // Камера за спиной
       const offset = new THREE.Vector3(0,2,5)
@@ -198,7 +201,7 @@
       camera.position.copy(player.position).add(offset);
       camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1,0)));
 
-      // Обновление пуль и попадания
+      // Обновляем пули и проверяем попадания
       bullets = bullets.filter(b=>{
         b.position.addScaledVector(b.userData.velocity, dt);
         if(b.position.length()>200){ scene.remove(b); return false; }
