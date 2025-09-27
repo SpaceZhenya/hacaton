@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
-  <title>3D Shooter — прицел по клику</title>
+  <title>3D Shooter — Улучшенная база</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #crosshair {
@@ -28,156 +28,262 @@
 
   <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
   <script>
+    // Основные переменные
     let scene, camera, renderer;
     const player = new THREE.Group();
-    let bullets = [], targets = [], kills = 0;
+    const bullets = [];
+    const targets = [];
+    let kills = 0;
     const clock = new THREE.Clock();
     const move = { forward: 0, turn: 0 };
     const speed = 8, turnSpeed = 2.5;
 
-    // Raycaster для кликов
+    // Для прицеливания по клику
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
 
     init();
     animate();
 
     function init() {
+      // Сцена и фон
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x20232a);
 
+      // Рендерер
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+      // Камера
+      camera = new THREE.PerspectiveCamera(
+        75, window.innerWidth / window.innerHeight, 0.1, 1000
+      );
 
+      // Свет
       const light = new THREE.DirectionalLight(0xffffff, 1);
-      light.position.set(5,10,7.5);
+      light.position.set(5, 10, 7.5);
       scene.add(light);
 
+      // Пол
       const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(200,200),
+        new THREE.PlaneGeometry(200, 200),
         new THREE.MeshStandardMaterial({ color: 0x808080 })
       );
-      floor.rotation.x = -Math.PI/2;
+      floor.rotation.x = -Math.PI / 2;
       scene.add(floor);
 
-      // low-poly человек
+      // Игрок (low-poly)
       createLowPolyPlayer();
       scene.add(player);
-      player.position.set(0,0,0);
+      player.position.set(0, 0, 0);
 
+      // Среда
       createBase();
       createTargets();
+
+      // Контролы
       setupControls();
       window.addEventListener('resize', onResize);
     }
 
+    // Строим низкополигонального человека
     function createLowPolyPlayer() {
       const mat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.3), mat);
+      // Торс
+      const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 1, 0.3), mat
+      );
       torso.position.y = 1;
       player.add(torso);
-
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.3), mat.clone());
+      // Голова
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.3, 0.3),
+        mat.clone()
+      );
       head.position.y = 1.6;
       player.add(head);
-
-      const armGeo = new THREE.BoxGeometry(0.15,0.7,0.15);
+      // Руки
+      const armGeo = new THREE.BoxGeometry(0.15, 0.7, 0.15);
       const leftArm = new THREE.Mesh(armGeo, mat);
       const rightArm = leftArm.clone();
-      leftArm.position.set(-0.35,1.15,0);
-      rightArm.position.set( 0.35,1.15,0);
+      leftArm.position.set(-0.35, 1.15, 0);
+      rightArm.position.set(0.35, 1.15, 0);
       player.add(leftArm, rightArm);
-
-      const legGeo = new THREE.BoxGeometry(0.2,0.8,0.2);
+      // Ноги
+      const legGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
       const leftLeg = new THREE.Mesh(legGeo, mat);
       const rightLeg = leftLeg.clone();
-      leftLeg.position.set(-0.15,0.4,0);
-      rightLeg.position.set( 0.15,0.4,0);
+      leftLeg.position.set(-0.15, 0.4, 0);
+      rightLeg.position.set(0.15, 0.4, 0);
       player.add(leftLeg, rightLeg);
     }
 
+    // Улучшённая база с вышками, воротами и деталями
     function createBase() {
-      const wallMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
-      const buildMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
+      const wallMat   = new THREE.MeshStandardMaterial({ color: 0x444444 });
+      const buildMat  = new THREE.MeshStandardMaterial({ color: 0x666666 });
+      const detailMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
 
-      const wallV = new THREE.BoxGeometry(1,3,50);
-      const wallH = new THREE.BoxGeometry(50,3,1);
-      [[-25,0],[25,0]].forEach(([x,z])=>{
+      // Периметр стен
+      const wallV = new THREE.BoxGeometry(1, 4, 60);
+      const wallH = new THREE.BoxGeometry(60, 4, 1);
+      [[-30,0],[30,0]].forEach(([x,z])=>{
         const w = new THREE.Mesh(wallV, wallMat);
-        w.position.set(x,1.5,z);
+        w.position.set(x,2,z);
         scene.add(w);
       });
-      [[0,-25],[0,25]].forEach(([x,z])=>{
+      [[0,-30],[0,30]].forEach(([x,z])=>{
         const w = new THREE.Mesh(wallH, wallMat);
-        w.position.set(x,1.5,z);
+        w.position.set(x,2,z);
         scene.add(w);
       });
 
-      const barracks = new THREE.Mesh(new THREE.BoxGeometry(10,3,6), buildMat);
-      barracks.position.set(-10,1.5,-10);
+      // Смотровые вышки
+      const towerGeo = new THREE.CylinderGeometry(1.5,1.5,12,8);
+      for (let dx of [-28,28]) for (let dz of [-28,28]) {
+        const tower = new THREE.Mesh(towerGeo, buildMat);
+        tower.position.set(dx,6,dz);
+        scene.add(tower);
+        // Площадка сверху
+        const top = new THREE.Mesh(
+          new THREE.CylinderGeometry(2,2,0.5,12),
+          detailMat
+        );
+        top.position.set(dx,12.25,dz);
+        scene.add(top);
+        // Маяк
+        const beacon = new THREE.PointLight(0xffcc66, 1, 20);
+        beacon.position.set(dx,13,dz);
+        scene.add(beacon);
+      }
+
+      // Здания и коридор
+      const barracks = new THREE.Mesh(
+        new THREE.BoxGeometry(16,4,6), buildMat
+      );
+      barracks.position.set(-8,2,-10);
       scene.add(barracks);
 
-      const cmd = new THREE.Mesh(new THREE.BoxGeometry(6,4,6), buildMat);
-      cmd.position.set(10,2,-10);
-      scene.add(cmd);
+      const commandPost = new THREE.Mesh(
+        new THREE.BoxGeometry(6,4,16), buildMat
+      );
+      commandPost.position.set(10,2,8);
+      scene.add(commandPost);
 
-      const hangar = new THREE.Mesh(new THREE.BoxGeometry(14,5,10), buildMat);
-      hangar.position.set(0,2.5,10);
-      scene.add(hangar);
+      const corridor = new THREE.Mesh(
+        new THREE.BoxGeometry(4,3,10), wallMat
+      );
+      corridor.position.set(1,1.5,-2);
+      scene.add(corridor);
 
-      for (let i=0; i<10; i++){
-        const box = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), wallMat);
-        box.position.set((Math.random()-0.5)*20,0.5,(Math.random()-0.5)*20);
+      // Ворота (статичные)
+      const gateGeo = new THREE.BoxGeometry(6,3,0.5);
+      const leftGate  = new THREE.Mesh(gateGeo, detailMat);
+      const rightGate = leftGate.clone();
+      leftGate.position.set( -3,1.5,30 );
+      rightGate.position.set(  3,1.5,30 );
+      scene.add(leftGate, rightGate);
+
+      // Фонари вдоль стены
+      for (let i = -20; i <= 20; i += 10) {
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.1,0.1,4,6),
+          detailMat
+        );
+        pole.position.set(i,2.5,29);
+        scene.add(pole);
+        const spot = new THREE.SpotLight(0xffffff,0.8,50,Math.PI/6,0.5);
+        spot.position.set(i,4,28);
+        spot.target.position.set(i,0,25);
+        scene.add(spot, spot.target);
+      }
+
+      // Хелипад
+      const helipad = new THREE.Mesh(
+        new THREE.CircleGeometry(5,32),
+        new THREE.MeshStandardMaterial({ color:0x333333 })
+      );
+      helipad.rotation.x = -Math.PI/2;
+      helipad.position.set(0,0.01,15);
+      scene.add(helipad);
+
+      // Ящики и бочки
+      for (let i = 0; i < 15; i++){
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(1,1,1),
+          detailMat
+        );
+        box.position.set(
+          (Math.random()-0.5)*40,
+          0.5,
+          (Math.random()-0.5)*40
+        );
         scene.add(box);
+        if (i % 5 === 0) {
+          const barrel = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.5,0.5,1.2,12),
+            new THREE.MeshStandardMaterial({ color:0x222222 })
+          );
+          barrel.position.set(
+            (Math.random()-0.5)*40,
+            0.6,
+            (Math.random()-0.5)*40
+          );
+          scene.add(barrel);
+        }
       }
     }
 
+    // Цели (красные ящики)
     function createTargets() {
       const geo = new THREE.BoxGeometry(1,1,1);
       const mat = new THREE.MeshStandardMaterial({ color: 0xff3333 });
-      for (let i=0; i<20; i++){
+      for (let i = 0; i < 20; i++) {
         const t = new THREE.Mesh(geo, mat);
-        t.position.set((Math.random()-0.5)*50,0.5,-Math.random()*50);
+        t.position.set(
+          (Math.random()-0.5)*50,
+          0.5,
+          -Math.random()*50
+        );
         scene.add(t);
         targets.push(t);
       }
     }
 
+    // Управление и стрельба
     function setupControls() {
-      document.addEventListener('keydown', e=>{
-        if(e.code==='ArrowUp')    move.forward= 1;
-        if(e.code==='ArrowDown')  move.forward=-1;
-        if(e.code==='ArrowLeft')  move.turn   =  1;
-        if(e.code==='ArrowRight') move.turn   = -1;
+      document.addEventListener('keydown', e => {
+        if (e.code === 'ArrowUp')    move.forward =  1;
+        if (e.code === 'ArrowDown')  move.forward = -1;
+        if (e.code === 'ArrowLeft')  move.turn    =  1;
+        if (e.code === 'ArrowRight') move.turn    = -1;
       });
-      document.addEventListener('keyup', e=>{
-        if(e.code==='ArrowUp'||e.code==='ArrowDown')  move.forward=0;
-        if(e.code==='ArrowLeft'||e.code==='ArrowRight')move.turn   =0;
+      document.addEventListener('keyup', e => {
+        if (e.code==='ArrowUp'||e.code==='ArrowDown')  move.forward=0;
+        if (e.code==='ArrowLeft'||e.code==='ArrowRight')move.turn   =0;
       });
       document.addEventListener('mousedown', shoot);
     }
 
     function shoot(event) {
-      // Нормализуем координаты клика
+      // Нормализация координат мыши
       mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
       mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
-      // Найдём точку на плоскости земли
+      // Точка пересечения с землёй
       const point = new THREE.Vector3();
       raycaster.ray.intersectPlane(groundPlane, point);
 
       // Создаём пулю
       const geo = new THREE.SphereGeometry(0.1,8,8);
-      const mat = new THREE.MeshBasicMaterial({ color:0xffff00 });
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
       const b = new THREE.Mesh(geo, mat);
       b.position.copy(player.position).add(new THREE.Vector3(0,1,0));
 
-      // Направление от пули к точке клика
+      // Направление к цели
       const dir = point.clone().sub(b.position).normalize();
       b.userData.velocity = dir.multiplyScalar(50);
 
@@ -185,6 +291,7 @@
       bullets.push(b);
     }
 
+    // Главный цикл
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
@@ -192,8 +299,10 @@
       // Поворот и движение игрока
       player.rotation.y += move.turn * turnSpeed * dt;
       const yaw = player.rotation.y;
-      const fv = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
-      player.position.addScaledVector(fv, move.forward * speed * dt);
+      const forwardVec = new THREE.Vector3(
+        Math.sin(yaw), 0, Math.cos(yaw)
+      );
+      player.position.addScaledVector(forwardVec, move.forward * speed * dt);
 
       // Камера за спиной
       const offset = new THREE.Vector3(0,2,5)
@@ -202,26 +311,32 @@
       camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1,0)));
 
       // Обновляем пули и проверяем попадания
-      bullets = bullets.filter(b=>{
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
         b.position.addScaledVector(b.userData.velocity, dt);
-        if(b.position.length()>200){ scene.remove(b); return false; }
-        targets.forEach((t,i)=>{
-          if(b.position.distanceTo(t.position)<0.6){
-            scene.remove(t); targets.splice(i,1);
+        if (b.position.length() > 200) {
+          scene.remove(b);
+          bullets.splice(i, 1);
+          continue;
+        }
+        for (let j = targets.length - 1; j >= 0; j--) {
+          const t = targets[j];
+          if (b.position.distanceTo(t.position) < 0.6) {
+            scene.remove(t);
+            targets.splice(j, 1);
             kills++;
-            document.getElementById('kills').textContent = 'Убито: '+kills;
+            document.getElementById('kills').textContent = 'Убито: ' + kills;
           }
-        });
-        return true;
-      });
+        }
+      }
 
       renderer.render(scene, camera);
     }
 
     function onResize() {
-      camera.aspect = innerWidth/innerHeight;
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight);
     }
   </script>
 </body>
