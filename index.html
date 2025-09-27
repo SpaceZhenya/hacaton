@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>3D Shooter (Third-Person) – Стрелки для поворота</title>
+  <meta charset="UTF-8"/>
+  <title>3D Shooter (Third-Person) с моделью человека</title>
   <style>
-    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    body { margin: 0; overflow: hidden; }
     #crosshair {
       position: absolute; top: 50%; left: 50%;
       width: 20px; height: 20px;
@@ -27,33 +27,36 @@
   <div id="kills">Убито: 0</div>
 
   <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.153.0/examples/js/loaders/GLTFLoader.js"></script>
   <script>
-    // базовые объекты
     let scene, camera, renderer;
-    let player, bullets = [], targets = [];
-    let kills = 0;
+    // вместо плоской капсулы создаём группу «игрока»
+    const player = new THREE.Group();
+    let bullets = [], targets = [], kills = 0;
     const clock = new THREE.Clock();
-
-    // управление
     const move = { forward: 0, turn: 0 };
-    const speed     = 8;     // скорость движения
-    const turnSpeed = 2.5;   // скорость поворота (рад/сек)
+    const speed = 8, turnSpeed = 2.5;
 
     init();
     animate();
 
     function init() {
+      // сцена и рендерер
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x20232a);
-
-      // камера и рендерер
-      camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
       renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(innerWidth, innerHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      // свет и пол
-      scene.add(new THREE.DirectionalLight(0xffffff, 1).position.set(5,10,7.5));
+      // камера
+      camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+
+      // свет
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(5,10,7.5);
+      scene.add(light);
+
+      // пол
       const floor = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
         new THREE.MeshStandardMaterial({ color: 0x808080 })
@@ -61,17 +64,32 @@
       floor.rotation.x = -Math.PI/2;
       scene.add(floor);
 
-      // игрок как капсула
-      const geo = new THREE.CapsuleGeometry(0.5,1,4,8);
-      const mat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
-      player = new THREE.Mesh(geo, mat);
-      player.position.set(0,1,0);
+      // «игрок» как пустая группа
       scene.add(player);
+      player.position.set(0, 0, 0);
+
+      // загрузка модели человека (солдата)
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Soldier/glTF-Binary/Soldier.glb',
+        gltf => {
+          const model = gltf.scene;
+          model.traverse(node => {
+            if (node.isMesh) node.castShadow = true;
+          });
+          // масштаб и смещение, чтобы стопы стояли на земле
+          model.scale.set(1.5, 1.5, 1.5);
+          model.position.set(0, 0, 0);
+          player.add(model);
+        },
+        undefined,
+        err => console.error(err)
+      );
 
       // цели
       createTargets();
 
-      // события клавиатуры и мыши
+      // управление
       setupControls();
       window.addEventListener('resize', onResize);
     }
@@ -88,7 +106,6 @@
     }
 
     function setupControls() {
-      // стрелки для движения/поворота
       document.addEventListener('keydown', e => {
         if (e.code === 'ArrowUp')    move.forward =  1;
         if (e.code === 'ArrowDown')  move.forward = -1;
@@ -99,8 +116,6 @@
         if (e.code === 'ArrowUp'   || e.code === 'ArrowDown')  move.forward = 0;
         if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') move.turn    = 0;
       });
-
-      // выстрел мышкой
       document.addEventListener('mousedown', shoot);
     }
 
@@ -108,6 +123,7 @@
       const geo = new THREE.SphereGeometry(0.1,8,8);
       const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
       const b = new THREE.Mesh(geo, mat);
+      // чуть выше позиции группы
       b.position.copy(player.position).add(new THREE.Vector3(0,1,0));
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
@@ -120,23 +136,23 @@
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
-      // поворот игрока
+      // поворот группы-игрока
       player.rotation.y += move.turn * turnSpeed * dt;
       const yaw = player.rotation.y;
 
-      // движение вперёд/назад по направлению взгляда
+      // движение вперёд/назад по направлению
       const forwardVec = new THREE.Vector3(
         Math.sin(yaw), 0, Math.cos(yaw)
       );
       player.position.addScaledVector(forwardVec, move.forward * speed * dt);
 
-      // позиционирование камеры за спиной
+      // камера сзади и выше
       const offset = new THREE.Vector3(0, 2, 5)
         .applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
       camera.position.copy(player.position).add(offset);
       camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1,0)));
 
-      // обновление пуль и проверка попаданий
+      // обновление пуль и коллизий
       bullets = bullets.filter(b => {
         b.position.addScaledVector(b.userData.velocity, dt);
         if (b.position.length() > 200) {
@@ -148,7 +164,8 @@
             scene.remove(t);
             targets.splice(i,1);
             kills++;
-            document.getElementById('kills').textContent = 'Убито: ' + kills;
+            document.getElementById('kills')
+                    .textContent = 'Убито: ' + kills;
           }
         });
         return true;
