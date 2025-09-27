@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>FPS Shooter</title>
+<title>FPS Shooter Ready</title>
 <style>
   body { margin:0; overflow:hidden; background:#000; }
   canvas { display:block; }
@@ -20,12 +20,12 @@
 </head>
 <body>
 <div id="score">Счёт: 0</div>
-<div id="hint">Кликните мышкой для активации управления</div>
+<div id="hint">Кликните мышкой для управления</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/controls/PointerLockControls.js"></script>
 <script>
-// === Сцена, камера, рендер ===
+// --- Сцена и камера ---
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(4,1.5,4);
@@ -40,14 +40,11 @@ scene.add(light);
 scene.add(new THREE.AmbientLight(0x404040));
 
 // Пол
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(200,200),
-  new THREE.MeshPhongMaterial({color:0x222222})
-);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshPhongMaterial({color:0x222222}));
 ground.rotation.x = -Math.PI/2;
 scene.add(ground);
 
-// === Карта (стены) ===
+// Карта
 const map = [
   "####################",
   "#........#.........#",
@@ -72,11 +69,11 @@ for(let z=0; z<map.length; z++){
   }
 }
 
-// === Игрок ===
+// --- Игрок и PointerLock ---
 const controls = new THREE.PointerLockControls(camera, document.body);
 document.body.addEventListener("click", ()=>controls.lock());
-controls.addEventListener("lock",()=>document.getElementById("hint").style.display="none");
-controls.addEventListener("unlock",()=>document.getElementById("hint").style.display="block");
+controls.addEventListener("lock", ()=>document.getElementById("hint").style.display="none");
+controls.addEventListener("unlock", ()=>document.getElementById("hint").style.display="block");
 
 // --- Управление ---
 const velocity = new THREE.Vector3();
@@ -85,7 +82,7 @@ const keys = {};
 document.addEventListener("keydown", e=>keys[e.code]=true);
 document.addEventListener("keyup", e=>keys[e.code]=false);
 
-// --- Пули (пробел) ---
+// --- Пули ---
 let bullets = [];
 document.addEventListener("keydown", e=>{
   if(e.code==="Space" && controls.isLocked){
@@ -93,9 +90,7 @@ document.addEventListener("keydown", e=>{
     const material = new THREE.MeshBasicMaterial({color:0xffff00});
     const bullet = new THREE.Mesh(geometry, material);
     bullet.position.copy(camera.position);
-    bullet.userData.velocity = new THREE.Vector3(0,0,-1)
-      .applyQuaternion(camera.quaternion)
-      .multiplyScalar(0.8);
+    bullet.userData.velocity = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).multiplyScalar(0.8);
     scene.add(bullet);
     bullets.push(bullet);
   }
@@ -114,13 +109,12 @@ function spawnEnemy(){
 }
 setInterval(spawnEnemy,4000);
 
-// === Анимация ===
+// --- Анимация ---
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
 
-  // движение стрелками
   velocity.x -= velocity.x*10*delta;
   velocity.z -= velocity.z*10*delta;
 
@@ -164,7 +158,7 @@ function animate(){
     });
 
     if(enemy.position.distanceTo(camera.position)<1.5){
-      document.getElementById("score").innerText = "💀 Game Over!";
+      document.getElementById("score").innerText="💀 Game Over!";
       enemies=[];
     }
   });
