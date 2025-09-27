@@ -1,120 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SenseAble+ Hackathon Demo</title>
-<style>
-  body { font-family: Arial, sans-serif; background: #f0f0f0; color: #222; padding: 20px; }
-  body.high-contrast { background: #000; color: #fff; }
-  body.dyslexia-font { font-family: 'OpenDyslexic', Arial, sans-serif; }
-  .container { max-width: 700px; margin: auto; text-align: center; }
-  button { padding: 10px 20px; margin: 5px; font-size: 1rem; }
-  #taskStep { margin-top: 20px; font-weight: bold; }
-  video { border: 2px solid #222; max-width: 100%; margin-top: 10px; }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <meta charset="UTF-8">
+  <title>3D FPS Шутер (стрелки + пробел)</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; }
+    #score {
+      position: absolute;
+      top: 10px; left: 10px;
+      color: white; font-family: sans-serif;
+      font-size: 18px;
+      z-index: 100;
+    }
+    #menu {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-family: sans-serif;
+      font-size: 24px;
+      text-align: center;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+    }
+  </style>
 </head>
 <body>
-<div class="container">
-  <h1>SenseAble+ Hackathon Demo</h1>
-  <p>Voice commands: "toggle color mode", "toggle dyslexia font", "say hello", "read message", "start task".</p>
-  <button id="toggleMode">Toggle Color Mode</button>
-  <button id="toggleFont">Toggle Dyslexia Font</button>
-  <button id="speakHello">Say Hello</button>
-  <button id="readMessage">Read Message</button>
-  <button id="startTask">Start Task</button>
-  <p id="message">This is a sample message for SenseAble+ users.</p>
-  <p id="taskStep"></p>
-  <video id="webcam" autoplay muted width="640" height="480"></video>
-</div>
+  <div id="score">Счёт: 0</div>
+  <div id="menu">
+    <p>Нажми "Старт", чтобы играть</p>
+    <button id="startButton">Старт</button>
+  </div>
 
-<script>
-  // --- Voice Recognition ---
-  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  recognition.continuous = true;
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.onresult = (event) => {
-    const last = event.results.length - 1;
-    const command = event.results[last][0].transcript.trim().toLowerCase();
-    handleCommand(command);
-  };
-  recognition.start();
+  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/controls/PointerLockControls.js"></script>
+  <script>
+    // --- Сцена, камера, рендер ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-  // --- Text-to-Speech ---
-  function speak(text) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    speechSynthesis.speak(utterance);
-  }
+    // Свет
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10, 20, 10);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040));
 
-  // --- Adaptive Features ---
-  const body = document.body;
-  const messageEl = document.getElementById('message');
-  const taskStepEl = document.getElementById('taskStep');
+    // Пол
+    const groundGeometry = new THREE.PlaneGeometry(200, 200);
+    const groundMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
 
-  function toggleColorMode() { body.classList.toggle('high-contrast'); speak('Color mode toggled'); }
-  function toggleDyslexiaFont() { body.classList.toggle('dyslexia-font'); speak('Dyslexia-friendly font toggled'); }
-  function sayHello() { speak('Hello! Welcome to SenseAble+.'); }
-  function readMessage() { speak(messageEl.textContent); }
+    // --- Карта (лабиринт) ---
+    const map = [
+      "####################",
+      "#........#.........#",
+      "#........#.........#",
+      "#........#.........#",
+      "#..................#",
+      "#........#####.....#",
+      "#........#.........#",
+      "#........#.........#",
+      "####################",
+    ];
 
-  // --- Step-by-step task guidance ---
-  const taskSteps = [
-    "Step 1: Open your email.",
-    "Step 2: Check your inbox for new messages.",
-    "Step 3: Reply to important messages.",
-    "Step 4: Mark completed tasks.",
-    "Task finished!"
-  ];
-  let currentStep = 0;
-  function startTask() { currentStep = 0; nextTaskStep(); }
-  function nextTaskStep() {
-    if (currentStep < taskSteps.length) {
-      taskStepEl.textContent = taskSteps[currentStep];
-      speak(taskSteps[currentStep]);
-      currentStep++;
-    } else { taskStepEl.textContent = ""; }
-  }
+    const wallSize = 2;
+    const wallGeometry = new THREE.BoxGeometry(wallSize, wallSize, wallSize);
+    const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x5555ff });
 
-  // --- Gesture Simulation ---
-  let touchStartX = 0, touchEndX = 0;
-  document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; });
-  document.addEventListener('touchend', (e) => { touchEndX = e.changedTouches[0].screenX; handleGesture(); });
-  function handleGesture() {
-    const deltaX = touchEndX - touchStartX;
-    if (deltaX > 50) { speak('Next task step'); nextTaskStep(); }
-    else if (deltaX < -50) { speak('Previous task step'); if (currentStep > 1) currentStep -= 2; nextTaskStep(); }
-  }
+    for (let z = 0; z < map.length; z++) {
+      for (let x = 0; x < map[z].length; x++) {
+        if (map[z][x] === "#") {
+          const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+          wall.position.set(x * wallSize, wallSize / 2, z * wallSize);
+          scene.add(wall);
+        }
+      }
+    }
 
-  function handleCommand(command) {
-    if (command.includes('toggle color')) toggleColorMode();
-    else if (command.includes('toggle dyslexia')) toggleDyslexiaFont();
-    else if (command.includes('say hello')) sayHello();
-    else if (command.includes('read message')) readMessage();
-    else if (command.includes('start task')) startTask();
-  }
+    // --- Игрок (управление) ---
+    const controls = new THREE.PointerLockControls(camera, document.body);
+    document.getElementById("startButton").addEventListener("click", () => {
+      controls.lock();
+      document.getElementById("menu").style.display = "none";
+    });
 
-  // --- Webcam & Object Detection ---
-  const video = document.getElementById('webcam');
-  async function setupWebcam() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-    return new Promise(resolve => { video.onloadedmetadata = () => resolve(video); });
-  }
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const keys = {};
 
-  async function detectObjects() {
-    const model = await cocoSsd.load();
-    speak('Object detection ready.');
-    setInterval(async () => {
-      const predictions = await model.detect(video);
-      predictions.forEach(pred => {
-        if (pred.score > 0.6) speak(`Detected ${pred.class} ahead`);
+    document.addEventListener("keydown", e => keys[e.code] = true);
+    document.addEventListener("keyup", e => keys[e.code] = false);
+
+    // --- Стрельба (Пробел) ---
+    let bullets = [];
+    document.addEventListener("keydown", e => {
+      if (e.code === "Space" && controls.isLocked) {
+        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const bullet = new THREE.Mesh(geometry, material);
+        bullet.position.copy(camera.position);
+        bullet.userData.velocity = new THREE.Vector3(0, 0, -1)
+          .applyQuaternion(camera.quaternion)
+          .multiplyScalar(0.8);
+        scene.add(bullet);
+        bullets.push(bullet);
+      }
+    });
+
+    // --- Враги ---
+    let enemies = [];
+    let score = 0;
+
+    function spawnEnemy() {
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+      const enemy = new THREE.Mesh(geometry, material);
+      enemy.position.set((Math.random() - 0.5) * 40, 0.5, (Math.random() - 0.5) * 40);
+      scene.add(enemy);
+      enemies.push(enemy);
+    }
+    setInterval(spawnEnemy, 4000);
+
+    // --- Анимация ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+
+      // Управление стрелками
+      velocity.x -= velocity.x * 10.0 * delta;
+      velocity.z -= velocity.z * 10.0 * delta;
+
+      direction.set(0, 0, 0);
+      if (keys["ArrowUp"]) direction.z = -1;
+      if (keys["ArrowDown"]) direction.z = 1;
+      if (keys["ArrowLeft"]) direction.x = -1;
+      if (keys["ArrowRight"]) direction.x = 1;
+
+      direction.normalize();
+
+      const speed = 10.0;
+      if (direction.z !== 0) velocity.z -= direction.z * speed * delta;
+      if (direction.x !== 0) velocity.x -= direction.x * speed * delta;
+
+      controls.moveRight(-velocity.x * delta);
+      controls.moveForward(-velocity.z * delta);
+
+      // Пули
+      bullets.forEach((bullet, index) => {
+        bullet.position.add(bullet.userData.velocity);
+        if (bullet.position.length() > 200) {
+          scene.remove(bullet);
+          bullets.splice(index, 1);
+        }
       });
-    }, 5000); // alert every 5 seconds for demo
-  }
 
-  setupWebcam().then(detectObjects);
-</script>
+      // Враги
+      enemies.forEach((enemy, eIndex) => {
+        const dir = camera.position.clone().sub(enemy.position).normalize();
+        enemy.position.add(dir.multiplyScalar(0.02));
+
+        // Попадание
+        bullets.forEach((bullet, bIndex) => {
+          if (enemy.position.distanceTo(bullet.position) < 1) {
+            scene.remove(enemy);
+            enemies.splice(eIndex, 1);
+            scene.remove(bullet);
+            bullets.splice(bIndex, 1);
+            score++;
+            document.getElementById("score").innerText = "Счёт: " + score;
+          }
+        });
+
+        // Игрок проиграл
+        if (enemy.position.distanceTo(camera.position) < 1.5) {
+          document.getElementById("score").innerText = "💀 Game Over!";
+          enemies = [];
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
 </body>
 </html>
