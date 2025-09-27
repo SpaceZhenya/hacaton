@@ -1,212 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>3D FPS Шутер</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    canvas { display: block; z-index: 0; }
-    #score {
-      position: absolute;
-      top: 10px; left: 10px;
-      color: white; font-family: sans-serif;
-      font-size: 18px;
-      z-index: 5;
-    }
-    #menu {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      font-family: sans-serif;
-      font-size: 24px;
-      text-align: center;
-      z-index: 10; /* 🔥 чтобы меню было сверху */
-      background: rgba(0,0,0,0.5);
-      padding: 20px;
-      border-radius: 10px;
-    }
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 18px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>FPS Шутер</title>
+<style>
+  body { margin:0; overflow:hidden; background:#000; }
+  canvas { display:block; z-index:0; }
+  #menu {
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%, -50%);
+    background:rgba(0,0,0,0.7);
+    padding:20px;
+    border-radius:10px;
+    color:white;
+    font-family:sans-serif;
+    text-align:center;
+    z-index:10;
+  }
+  button {
+    font-size:18px;
+    padding:10px 20px;
+    cursor:pointer;
+  }
+  #score {
+    position:absolute; top:10px; left:10px;
+    font-family:sans-serif; font-size:18px; color:white;
+    z-index:5;
+  }
+</style>
 </head>
 <body>
-  <div id="score">Счёт: 0</div>
-  <div id="menu">
-    <p>Нажми "Старт", чтобы играть</p>
-    <button id="startButton">Старт</button>
-  </div>
+<div id="score">Счёт: 0</div>
+<div id="menu">
+  <p>Нажми "Старт", чтобы играть</p>
+  <button id="startButton">Старт</button>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/controls/PointerLockControls.js"></script>
-  <script>
-    // --- Сцена, камера, рендер ---
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+<script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/controls/PointerLockControls.js"></script>
+<script>
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-    // Свет
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(10, 20, 10);
-    scene.add(light);
-    scene.add(new THREE.AmbientLight(0x404040));
+// Свет
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(10,20,10);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0x404040));
 
-    // Пол
-    const groundGeometry = new THREE.PlaneGeometry(200, 200);
-    const groundMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    scene.add(ground);
+// Пол
+const groundGeometry = new THREE.PlaneGeometry(200,200);
+const groundMaterial = new THREE.MeshPhongMaterial({color:0x222222});
+const ground = new THREE.Mesh(groundGeometry,groundMaterial);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
 
-    // --- Карта (лабиринт) ---
-    const map = [
-      "####################",
-      "#........#.........#",
-      "#........#.........#",
-      "#........#.........#",
-      "#..................#",
-      "#........#####.....#",
-      "#........#.........#",
-      "#........#.........#",
-      "####################",
-    ];
+// Карта
+const map = [
+  "####################",
+  "#........#.........#",
+  "#........#.........#",
+  "#........#.........#",
+  "#..................#",
+  "#........#####.....#",
+  "#........#.........#",
+  "#........#.........#",
+  "####################",
+];
+const wallSize = 2;
+const wallGeometry = new THREE.BoxGeometry(wallSize, wallSize, wallSize);
+const wallMaterial = new THREE.MeshPhongMaterial({color:0x5555ff});
+for(let z=0; z<map.length; z++){
+  for(let x=0; x<map[z].length; x++){
+    if(map[z][x]==="#"){
+      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+      wall.position.set(x*wallSize, wallSize/2, z*wallSize);
+      scene.add(wall);
+    }
+  }
+}
 
-    const wallSize = 2;
-    const wallGeometry = new THREE.BoxGeometry(wallSize, wallSize, wallSize);
-    const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x5555ff });
+// Игрок
+const controls = new THREE.PointerLockControls(camera, document.body);
+const menu = document.getElementById("menu");
+const startButton = document.getElementById("startButton");
 
-    for (let z = 0; z < map.length; z++) {
-      for (let x = 0; x < map[z].length; x++) {
-        if (map[z][x] === "#") {
-          const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-          wall.position.set(x * wallSize, wallSize / 2, z * wallSize);
-          scene.add(wall);
-        }
+// 🔑 Важное исправление
+startButton.addEventListener("click", function(e){
+  e.preventDefault(); // обязательно
+  controls.lock();
+});
+
+controls.addEventListener("lock",()=>{menu.style.display="none";});
+controls.addEventListener("unlock",()=>{menu.style.display="block";});
+
+// Управление
+const velocity = new THREE.Vector3();
+const direction = new THREE.Vector3();
+const keys = {};
+document.addEventListener("keydown",e=>keys[e.code]=true);
+document.addEventListener("keyup",e=>keys[e.code]=false);
+
+// Пули (пробел)
+let bullets=[];
+document.addEventListener("keydown", e=>{
+  if(e.code==="Space" && controls.isLocked){
+    const geometry = new THREE.SphereGeometry(0.1,8,8);
+    const material = new THREE.MeshBasicMaterial({color:0xffff00});
+    const bullet = new THREE.Mesh(geometry,material);
+    bullet.position.copy(camera.position);
+    bullet.userData.velocity = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).multiplyScalar(0.8);
+    scene.add(bullet);
+    bullets.push(bullet);
+  }
+});
+
+// Враги
+let enemies=[];
+let score=0;
+function spawnEnemy(){
+  const geometry = new THREE.BoxGeometry(1,1,1);
+  const material = new THREE.MeshPhongMaterial({color:0xff0000});
+  const enemy = new THREE.Mesh(geometry, material);
+  enemy.position.set((Math.random()-0.5)*40,0.5,(Math.random()-0.5)*40);
+  scene.add(enemy);
+  enemies.push(enemy);
+}
+setInterval(spawnEnemy,4000);
+
+// Анимация
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+
+  // движение стрелками
+  velocity.x -= velocity.x*10*delta;
+  velocity.z -= velocity.z*10*delta;
+
+  direction.set(0,0,0);
+  if(keys["ArrowUp"]) direction.z = -1;
+  if(keys["ArrowDown"]) direction.z = 1;
+  if(keys["ArrowLeft"]) direction.x = -1;
+  if(keys["ArrowRight"]) direction.x = 1;
+
+  direction.normalize();
+  const speed = 10;
+  if(direction.z!==0) velocity.z -= direction.z*speed*delta;
+  if(direction.x!==0) velocity.x -= direction.x*speed*delta;
+
+  controls.moveRight(-velocity.x*delta);
+  controls.moveForward(-velocity.z*delta);
+
+  // Пули
+  bullets.forEach((bullet,index)=>{
+    bullet.position.add(bullet.userData.velocity);
+    if(bullet.position.length()>200){
+      scene.remove(bullet);
+      bullets.splice(index,1);
+    }
+  });
+
+  // Враги
+  enemies.forEach((enemy,eIndex)=>{
+    const dir = camera.position.clone().sub(enemy.position).normalize();
+    enemy.position.add(dir.multiplyScalar(0.02));
+
+    bullets.forEach((bullet,bIndex)=>{
+      if(enemy.position.distanceTo(bullet.position)<1){
+        scene.remove(enemy);
+        enemies.splice(eIndex,1);
+        scene.remove(bullet);
+        bullets.splice(bIndex,1);
+        score++;
+        document.getElementById("score").innerText = "Счёт: "+score;
       }
+    });
+
+    if(enemy.position.distanceTo(camera.position)<1.5){
+      document.getElementById("score").innerText="💀 Game Over!";
+      enemies=[];
     }
+  });
 
-    // --- Игрок (управление) ---
-    const controls = new THREE.PointerLockControls(camera, document.body);
-    const menu = document.getElementById("menu");
-
-    document.getElementById("startButton").addEventListener("click", () => {
-      controls.lock();
-    });
-
-    controls.addEventListener("lock", () => {
-      menu.style.display = "none";
-    });
-
-    controls.addEventListener("unlock", () => {
-      menu.style.display = "block";
-    });
-
-    const velocity = new THREE.Vector3();
-    const direction = new THREE.Vector3();
-    const keys = {};
-
-    document.addEventListener("keydown", e => keys[e.code] = true);
-    document.addEventListener("keyup", e => keys[e.code] = false);
-
-    // --- Стрельба (пробел) ---
-    let bullets = [];
-    document.addEventListener("keydown", e => {
-      if (e.code === "Space" && controls.isLocked) {
-        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-        const bullet = new THREE.Mesh(geometry, material);
-        bullet.position.copy(camera.position);
-        bullet.userData.velocity = new THREE.Vector3(0, 0, -1)
-          .applyQuaternion(camera.quaternion)
-          .multiplyScalar(0.8);
-        scene.add(bullet);
-        bullets.push(bullet);
-      }
-    });
-
-    // --- Враги ---
-    let enemies = [];
-    let score = 0;
-
-    function spawnEnemy() {
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
-      const material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-      const enemy = new THREE.Mesh(geometry, material);
-      enemy.position.set((Math.random() - 0.5) * 40, 0.5, (Math.random() - 0.5) * 40);
-      scene.add(enemy);
-      enemies.push(enemy);
-    }
-    setInterval(spawnEnemy, 4000);
-
-    // --- Анимация ---
-    const clock = new THREE.Clock();
-
-    function animate() {
-      requestAnimationFrame(animate);
-      const delta = clock.getDelta();
-
-      // Управление стрелками
-      velocity.x -= velocity.x * 10.0 * delta;
-      velocity.z -= velocity.z * 10.0 * delta;
-
-      direction.set(0, 0, 0);
-      if (keys["ArrowUp"]) direction.z = -1;
-      if (keys["ArrowDown"]) direction.z = 1;
-      if (keys["ArrowLeft"]) direction.x = -1;
-      if (keys["ArrowRight"]) direction.x = 1;
-
-      direction.normalize();
-
-      const speed = 10.0;
-      if (direction.z !== 0) velocity.z -= direction.z * speed * delta;
-      if (direction.x !== 0) velocity.x -= direction.x * speed * delta;
-
-      controls.moveRight(-velocity.x * delta);
-      controls.moveForward(-velocity.z * delta);
-
-      // Пули
-      bullets.forEach((bullet, index) => {
-        bullet.position.add(bullet.userData.velocity);
-        if (bullet.position.length() > 200) {
-          scene.remove(bullet);
-          bullets.splice(index, 1);
-        }
-      });
-
-      // Враги
-      enemies.forEach((enemy, eIndex) => {
-        const dir = camera.position.clone().sub(enemy.position).normalize();
-        enemy.position.add(dir.multiplyScalar(0.02));
-
-        // Попадание
-        bullets.forEach((bullet, bIndex) => {
-          if (enemy.position.distanceTo(bullet.position) < 1) {
-            scene.remove(enemy);
-            enemies.splice(eIndex, 1);
-            scene.remove(bullet);
-            bullets.splice(bIndex, 1);
-            score++;
-            document.getElementById("score").innerText = "Счёт: " + score;
-          }
-        });
-
-        // Игрок проиграл
-        if (enemy.position.distanceTo(camera.position) < 1.5) {
-          document.getElementById("score").innerText = "💀 Game Over!";
-          enemies = [];
-        }
-      });
-
-      renderer.render(scene, camera);
-    }
-
-    animate();
-  </script>
+  renderer.render(scene,camera);
+}
+animate();
+</script>
 </body>
 </html>
