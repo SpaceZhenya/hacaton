@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>3D Shooter (Third-Person) на Three.js</title>
+  <title>3D Shooter (Third-Person) – Стрелки для поворота</title>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; }
     #crosshair {
@@ -20,72 +20,58 @@
       position: absolute; top: 10px; left: 10px;
       color: white; font-size: 18px; text-shadow: 0 0 5px black;
     }
-    #blocker {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.75); display: flex;
-      align-items: center; justify-content: center; color: white;
-      cursor: pointer; user-select: none;
-    }
   </style>
 </head>
 <body>
-  <div id="blocker">Кликните, чтобы начать</div>
   <div id="crosshair"></div>
   <div id="kills">Убито: 0</div>
 
   <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
   <script>
+    // базовые объекты
     let scene, camera, renderer;
     let player, bullets = [], targets = [];
     let kills = 0;
     const clock = new THREE.Clock();
 
-    // Поворот (yaw) и наклон (pitch) камеры/игрока
-    let yaw = 0, pitch = 0;
-    const PI_2 = Math.PI / 2;
-
-    // Движение
-    const move = { forward: 0, right: 0 };
-    const speed = 8;
+    // управление
+    const move = { forward: 0, turn: 0 };
+    const speed     = 8;     // скорость движения
+    const turnSpeed = 2.5;   // скорость поворота (рад/сек)
 
     init();
     animate();
 
     function init() {
-      // Сцена и рендерер
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x20232a);
+
+      // камера и рендерер
+      camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
       renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(innerWidth, innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      // Камера
-      camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
-
-      // Освещение
-      const light = new THREE.DirectionalLight(0xffffff, 1);
-      light.position.set(5, 10, 7.5);
-      scene.add(light);
-
-      // Пол
+      // свет и пол
+      scene.add(new THREE.DirectionalLight(0xffffff, 1).position.set(5,10,7.5));
       const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
+        new THREE.PlaneGeometry(200,200),
         new THREE.MeshStandardMaterial({ color: 0x808080 })
       );
       floor.rotation.x = -Math.PI/2;
       scene.add(floor);
 
-      // Персонаж: CapsuleGeometry
-      const geo = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+      // игрок как капсула
+      const geo = new THREE.CapsuleGeometry(0.5,1,4,8);
       const mat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
       player = new THREE.Mesh(geo, mat);
-      player.position.set(0, 1, 0);
+      player.position.set(0,1,0);
       scene.add(player);
 
-      // Цели
+      // цели
       createTargets();
 
-      // Контролы
+      // события клавиатуры и мыши
       setupControls();
       window.addEventListener('resize', onResize);
     }
@@ -102,87 +88,58 @@
     }
 
     function setupControls() {
-      // Pointer Lock
-      const blocker = document.getElementById('blocker');
-      blocker.addEventListener('click', () =>
-        renderer.domElement.requestPointerLock()
-      );
-      document.addEventListener('pointerlockchange', () => {
-        if (document.pointerLockElement === renderer.domElement) {
-          blocker.style.display = 'none';
-          document.addEventListener('mousemove', onMouseMove);
-        } else {
-          blocker.style.display = 'flex';
-          document.removeEventListener('mousemove', onMouseMove);
-        }
-      });
-
-      // WASD
+      // стрелки для движения/поворота
       document.addEventListener('keydown', e => {
-        if (e.code === 'KeyW') move.forward =  1;
-        if (e.code === 'KeyS') move.forward = -1;
-        if (e.code === 'KeyA') move.right   = -1;
-        if (e.code === 'KeyD') move.right   =  1;
+        if (e.code === 'ArrowUp')    move.forward =  1;
+        if (e.code === 'ArrowDown')  move.forward = -1;
+        if (e.code === 'ArrowLeft')  move.turn    =  1;
+        if (e.code === 'ArrowRight') move.turn    = -1;
       });
       document.addEventListener('keyup', e => {
-        if (e.code==='KeyW'||e.code==='KeyS') move.forward=0;
-        if (e.code==='KeyA'||e.code==='KeyD') move.right=0;
+        if (e.code === 'ArrowUp'   || e.code === 'ArrowDown')  move.forward = 0;
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') move.turn    = 0;
       });
 
-      // Стрельба
+      // выстрел мышкой
       document.addEventListener('mousedown', shoot);
     }
 
-    function onMouseMove(e) {
-      yaw   -= e.movementX * 0.002;
-      pitch -= e.movementY * 0.002;
-      pitch  = Math.max(-PI_2, Math.min(PI_2, pitch));
-      // Поворачиваем самого персонажа только по Y (yaw):
-      player.rotation.y = yaw;
-    }
-
     function shoot() {
-      const geo = new THREE.SphereGeometry(0.1, 8, 8);
+      const geo = new THREE.SphereGeometry(0.1,8,8);
       const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-      const bullet = new THREE.Mesh(geo, mat);
-      // пуля стартует из точки чуть выше центра игрока
-      bullet.position.copy(player.position).add(new THREE.Vector3(0,1,0));
-      // направление стрельбы — из камеры
+      const b = new THREE.Mesh(geo, mat);
+      b.position.copy(player.position).add(new THREE.Vector3(0,1,0));
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
-      bullet.userData.velocity = dir.multiplyScalar(50);
-      scene.add(bullet);
-      bullets.push(bullet);
+      b.userData.velocity = dir.multiplyScalar(50);
+      scene.add(b);
+      bullets.push(b);
     }
 
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
-      // Движение: вперед/назад и вбок относительно текущего yaw
+      // поворот игрока
+      player.rotation.y += move.turn * turnSpeed * dt;
+      const yaw = player.rotation.y;
+
+      // движение вперёд/назад по направлению взгляда
       const forwardVec = new THREE.Vector3(
         Math.sin(yaw), 0, Math.cos(yaw)
       );
-      const rightVec = new THREE.Vector3(
-        Math.sin(yaw + Math.PI/2), 0, Math.cos(yaw + Math.PI/2)
-      );
-      player.position.addScaledVector(
-        forwardVec, move.forward * speed * dt
-      );
-      player.position.addScaledVector(
-        rightVec, move.right * speed * dt
-      );
+      player.position.addScaledVector(forwardVec, move.forward * speed * dt);
 
-      // Обновляем положение камеры относительно игрока
-      const camOffset = new THREE.Vector3(0, 2, 5);
-      camOffset.applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-      camera.position.copy(player.position).add(camOffset);
+      // позиционирование камеры за спиной
+      const offset = new THREE.Vector3(0, 2, 5)
+        .applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+      camera.position.copy(player.position).add(offset);
       camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1,0)));
 
-      // Пули и коллизии
+      // обновление пуль и проверка попаданий
       bullets = bullets.filter(b => {
         b.position.addScaledVector(b.userData.velocity, dt);
-        if (b.position.length()>200) {
+        if (b.position.length() > 200) {
           scene.remove(b);
           return false;
         }
